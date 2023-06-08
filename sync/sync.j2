@@ -1,0 +1,45 @@
+# Jinja2 format sync workflow config.
+
+{% set target = "/path/to/target" %}
+
+#-----------------------------------------------------------------:
+#{# set workflows =
+#  [ # <WORKFLOWS TO WATCH>
+#    {
+#      "name": <WORKFLOW NAME>,
+#      "id": <WORKFLOW RUN ID>,
+#      "sync": [  # <SYNC POINTS IN THIS WORKFLOW>
+#        {
+#          "name": <NAME OF THIS SYNC POINT>,
+#          "recurrence": <CYCLING INTERVAL TO MATCH TASKS>",
+#          "tasks": [ <TASKS TO WAIT ON> ],
+#          "files": [ <FILES TO SYNC ONCE TASKS ARE DONE> ],
+#          "off-flow": [ <OFF-FLOW (TASK, OFFSET)s TO TRIGGER> ]
+#        },
+#      ]
+#    },
+#    {
+#       # NEXT WORKFLOW...
+#    },
+#  ]
+##}
+#-----------------------------------------------------------------:
+
+{% set workflows =
+  [
+    {
+      "name": "model1",
+      "id": "bomdr/model1/runN",
+      "sync": 
+      [
+        {
+          "name": "mainfc",
+          "recurrence": "PT1M",
+          "tasks": ["forecast"],
+          "files": ["share/$CYLC_TASK_CYCLE_POINT/fcast.out"],
+          "off-flow": [("get-data", "+PT1M")]
+        },
+      ]
+    },
+  ]
+%}

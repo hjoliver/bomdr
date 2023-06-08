@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Fake the action of an executable that processes one or more input files
+# and generates one or more output files.
+#
+# Args:
+#   $1 - fake executable name
+# Environment:
+#   $INPUT_FILES - input file names (in IO_DIR) or full paths
+#   $OUTPUT_FILES - output file names
+#   $IO_DIR - output file locations
+#   $SLEEP - how to long to run for in total
+#
+# Sleeps for a short while with ${OUTPUT}${TMP} written as
+# an intermediate file to indicate processing.
+
+set -u
+set -e
+
+FAKE_EXE=$1
+
+SLEEP=${SLEEP:-10}
+
+if [[ -n ${INPUT_FILES:-} ]]; then
+    for INPUT_FILE in $INPUT_FILES; do
+        if [[ ! $INPUT_FILE = /* ]]; then
+              # In IO dir unless abs path.
+              INPUT_FILE=$IO_DIR/$INPUT_FILE
+        fi
+        if [[ ! -f $INPUT_FILE ]]; then
+            >&2 echo "$FAKE_EXE ERROR: file not found: $IO_DIR/$INPUT_FILE"
+            exit 1
+        fi
+    done
+fi
+
+mkdir -p ${IO_DIR}
+
+if [[ -n ${OUTPUT_FILES:-} ]]; then
+    N=$( echo $OUTPUT_FILES | wc -l )
+    SLEEP_I=$(( SLEEP / N ))
+    for OUTPUT_FILE in $OUTPUT_FILES; do
+        if [[ ! $OUTPUT_FILE = /* ]]; then
+              # In IO dir unless abs path.
+              OUTPUT_FILE=$IO_DIR/$OUTPUT_FILE
+        fi
+        echo "$FAKE_EXE: Generating $OUTPUT_FILE"
+        touch "${OUTPUT_FILE}.tmp"
+        sleep $SLEEP_I
+        mv "${OUTPUT_FILE}.tmp" "${OUTPUT_FILE}"
+        touch $OUTPUT_FILE
+    done
+else
+    sleep $SLEEP
+fi
+
+echo "DONE"

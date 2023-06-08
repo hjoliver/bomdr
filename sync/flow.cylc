@@ -1,0 +1,57 @@
+#!Jinja2
+
+{% import "sync.j2" as config %}
+
+[scheduling]
+    initial cycle point = now
+    [[xtriggers]]
+        # External triggers to watch tasks in other workflows.
+{% for WORKFLOW in config.workflows %}
+  {% for SYNC in WORKFLOW["sync"] %}
+    {% for TASK in SYNC["tasks"] %}
+        {{WORKFLOW["name"]}}_{{TASK}} = workflow_state( \
+                workflow={{WORKFLOW["id"]}}, task={{TASK}}, point=%(point)s)
+    {% endfor %}
+  {% endfor %}
+{% endfor %}
+
+    [[graph]]
+{% for WORKFLOW in config.workflows %}
+  {% for SYNC in WORKFLOW["sync"] %}
+        {{SYNC["recurrence"]}} = """
+    {% for TASK in SYNC["tasks"] %}
+            @{{WORKFLOW["name"]}}_{{TASK}} =>
+                sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}} => update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}
+    {% endfor %}
+        """
+  {% endfor %}
+{% endfor %}
+
+[runtime]
+{% for WORKFLOW in config.workflows %}
+    [[{{WORKFLOW["name"]}}]]
+  {% for SYNC in WORKFLOW["sync"] %}
+    [[sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
+        # Sync the files for sync point "{{SYNC["name"]}}".
+        inherit = {{WORKFLOW["name"]}}
+        script = """
+            echo "SYNC to remote {{config.target}}:"
+    {% for FILE in SYNC["files"] %}
+            echo " - {{FILE}}"
+    {% endfor %}
+        """
+    [[update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
+        # Update remote fail-over DB for sync point "{{SYNC["name"]}}".
+        inherit = {{WORKFLOW["name"]}}
+        script = """
+            echo "Workflow {{WORKFLOW["name"]}} can be started at:"
+    {% for TASK in SYNC["tasks"] %}
+            echo " - downstream of: ${CYLC_TASK_CYCLE_POINT}/{{TASK}}"
+    {% endfor %}
+    {% for TASK, OFFSET in SYNC["off-flow"] %}
+            NEXT_POINT=$(cylc cyclepoint --offset={{OFFSET}})
+            echo " - trigger off-flow: ${NEXT_POINT}/{{TASK}}"
+    {% endfor %}
+        """
+  {% endfor %}
+{% endfor %}

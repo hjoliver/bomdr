@@ -1,0 +1,77 @@
+#!Jinja2
+
+{# set CINTV = "PT6H" #}
+{% set CINTV = "PT1M" %}
+# Cycling interval: {{CINTV}} e.g. PT6H (6 hours) or PT5M (5 min).
+
+{% set M = 4 %}  # Number of input data files.
+
+[task parameters]
+   m = 0..{{M}}
+   n = cat, dog, fish
+
+[scheduling]
+   # initial cycle point = 20221218T1200Z
+   initial cycle point = now
+   [[queues]]
+       [[[default]]]
+           limit = 5  # max 5 active tasks at once
+   [[xtriggers]]
+       clock = wall_clock()  # wait till clock = cycle point
+   [[graph]]
+       R1 = "cold-forecast => forecast"
+       R/^/{{CINTV}} = """
+           @clock => get-data => quality<m> => analysis => forecast => products<n>
+           forecast[-{{CINTV}}] => analysis
+           forecast => validate => products<n>
+           forecast => archive
+       """
+
+[runtime]
+    [[root]]
+        script = fake-exe $CYLC_TASK_NAME
+        [[[environment]]]
+            IO_DIR = $CYLC_WORKFLOW_SHARE_DIR/$CYLC_TASK_CYCLE_POINT
+            IO_DIR_PREV = $CYLC_WORKFLOW_SHARE_DIR/$(cylc cyclepoint --offset="-{{CINTV}}")
+            SLEEP=$((RANDOM%10))
+    [[get-data]]
+        # Get new real-time data from some external source.
+        [[[environment]]]
+            OUTPUT_FILES = "{% for I in range(M+1)%}data-{{I}} {% endfor %}"
+    [[quality<m>]]
+        # QC the new data.
+        [[[environment]]]
+            INPUT_FILES = "{% for I in range(M+1)%}data-{{I}} {% endfor %}"
+            OUTPUT_FILES = "qc-data-%(m)s"
+    [[analysis]]
+        # Generate input for next forecast.
+        # Uses new data and previous forecast.
+        [[[environment]]]
+            INPUT_FILES = "{% for I in range(M+1)%}data-{{I}} {% endfor %} $IO_DIR_PREV/fcast.out"
+            OUTPUT_FILES = "fcast.in"
+            SLEEP=20
+    [[cold-forecast]]
+        # Generate start data for the first forecast forecast.
+        pre-script = "mkdir -p $IO_DIR_PREV"
+        [[[environment]]]
+            OUTPUT_FILES = "$IO_DIR_PREV/fcast.out"
+            SLEEP=20
+    [[forecast]]
+        # Do the next forecast.
+        [[[environment]]]
+            INPUT_FILES = "fcast.in $IO_DIR_PREV/fcast.out"
+            OUTPUT_FILES = "fcast.out"
+            SLEEP=30
+    [[validate]]
+        # Validate forecast output.
+        [[[environment]]]
+            INPUT_FILES = "fcast.out"
+    [[products<n>]]
+        # Generate forecast products.
+        [[[environment]]]
+            INPUT_FILES = "fcast.out"
+            OUTPUT_FILES = "prod-%(n)s"
+    [[archive]]
+        # Archive forecast data.
+        [[[environment]]]
+            INPUT_FILES = "fcast.out"

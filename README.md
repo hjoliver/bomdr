@@ -2,16 +2,19 @@
 
 ## Current status
 
-Sync workflow generated on-the-fly to trigger sync tasks off of one dummy model
-workflow (with tasks that write their output files with `touch` and check for
-the existence of their input files).
+Sync workflow generated on-the-fly from a Jinja2-format config file, to trigger
+sync tasks at specified sync checkpoints in a dummy model workflow (which has
+tasks that check for the existence of their input files and write their output
+files with `touch`).
 
-The sync tasks currently just write out what they would do.
+The sync tasks currently just write what they would do, to stdout.
 
 ### TBD
 
-Implement actually file sync and remote database update, to enable restarting
-the system on the remote side at the most recent sync checkpoints.
+- implement file sync
+- implement remote database update
+- implement script to start remote workflows from most recent sync checkpoints
+
 
 ## Instructions
 

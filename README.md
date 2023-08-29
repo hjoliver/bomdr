@@ -2,28 +2,45 @@
 
 ## Current status
 
-Sync workflow generated on-the-fly from a Jinja2-format config file, to trigger
-sync tasks at specified sync checkpoints in a dummy model workflow (which has
-tasks that check for the existence of their input files and write their output
-files with `touch`).
+### `bomdr/model1`
 
-The sync tasks currently just write what they would do, to stdout.
+This is a dummy model workflow with dummy tasks that check for the existence of
+input files and write output files with `touch`. Tasks fail if their expected
+input files do not exist.
+
+### `bomdr/sync`
+
+This contains a Jinja2 template to automatically generate a sync workflow for
+target tasks in target workflows, as defined in `config.j2`.
+
+The sync workflow has cycles that match the target tasks, and xtriggers that
+wait on their success. When an xtrigger is satisfied, a sync task triggers to
+copy the target task's output file(s) to the remote, then (once the copy has
+succeeded) a task to update the sync point information on the remote: i.e.,
+which tasks need to be triggered on the remote to start from the sync point.
+
+It also syncs the target workflow definition, to allow restart on the remote.
+
+### The remote
+
+For this POC, the "remote" is simply a new top-level directory under cylc-run.
+
+The sync process replicates the directory structure of the source
+run-directories, for the synced files. Note this means `cylc install` is not
+needed on the remote. We can just play the faked workflow directly, from the
+latest recorded sync point.
 
 ### TBD
 
-- implement file sync
-- implement remote database update
 - implement script to start remote workflows from most recent sync checkpoints
 
 
 ## Instructions
 
-Fork this repo on GitHub if you plan to contribute to it.
-
 ```
 # check your environment:
 $ cylc version
-8.1.4
+8.2.1
 
 # clone your fork locally to to ~/cylc-src/bomdr, then:
 $ cd ~/cylc-src/bomdr
@@ -31,11 +48,11 @@ $ cd ~/cylc-src/bomdr
 # view the Jinja2-processed sync workflow config:
 $ cylc view -j ./sync
 
-# install, validate, and run the sync workflow:
-$ cylc vip ./sync
-
-# install, validate, and run the model1 workflow:
+# validate, install, and run the model1 workflow:
 $ cylc vip ./model1
+
+# validate, install, and run the sync workflow:
+$ cylc vip ./sync
 
 # check they're both running:
 $ cylc scan

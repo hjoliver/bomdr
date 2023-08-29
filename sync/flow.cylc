@@ -10,9 +10,8 @@ points configured in config.j2. Use "cylc view -j" to see the processed result.
 #}
 
 [scheduling]
-   # initial cycle point = now
    initial cycle point = 2022
-   final cycle point = +PT2M
+   final cycle point = +PT3M
    [[xtriggers]]
       # External triggers to watch tasks in other workflows.
 {% for WORKFLOW in config.workflows %}
@@ -63,7 +62,7 @@ points configured in config.j2. Use "cylc view -j" to see the processed result.
   {# construct command line (note dashes are Jinja2 whitespace control) #}
          write-syncfile.py -w
   {{-
-         " " ~ WORKFLOW["name"] ~ " "
+         " " ~ WORKFLOW["id"] ~ " "
   -}}
   {%- for TASK in SYNC["tasks"] -%}
             -s $CYCLE/{{TASK ~ " "}}

@@ -30,10 +30,6 @@ run-directories, for the synced files. Note this means `cylc install` is not
 needed on the remote. We can just play the faked workflow directly, from the
 latest recorded sync point.
 
-### TBD
-
-- implement script to start remote workflows from most recent sync checkpoints
-
 
 ## Instructions
 
@@ -68,4 +64,17 @@ $ cylc gui
 $ cylc validate ./sync
 ```
 
-...
+The model and sync workflows are configured to run 3 cycle points. Choose a
+syncpoint in the second cycle point to demo the remote start.
+
+After running the model workflow once, you can repeat run the sync as many
+times as you like (each run will generate new remote sync run-dir).
+
+Syncpoint files look like
+`~/cylc-run/REMOTE/bomdr/sync/run3/share/sync-model1-20220101T0000Z-mainfc.json`
+
+```console
+# to start the remote model worflow (ID: REMOTE/bomdr/model1/run1:
+$ start-remote.py <syncpoint.json>
+
+```

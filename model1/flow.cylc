@@ -11,8 +11,8 @@
    n = cat, dog, fish
 
 [scheduling]
-   # initial cycle point = 20221218T1200Z
-   initial cycle point = now
+   initial cycle point = 2022
+   # final cycle point = +PT5M
    [[queues]]
        [[[default]]]
            limit = 5  # max 5 active tasks at once
@@ -33,7 +33,7 @@
         [[[environment]]]
             IO_DIR = $CYLC_WORKFLOW_SHARE_DIR/$CYLC_TASK_CYCLE_POINT
             IO_DIR_PREV = $CYLC_WORKFLOW_SHARE_DIR/$(cylc cyclepoint --offset="-{{CINTV}}")
-            SLEEP=$((RANDOM%10))
+            SLEEP=$((RANDOM%5))
     [[get-data]]
         # Get new real-time data from some external source.
         [[[environment]]]
@@ -49,19 +49,19 @@
         [[[environment]]]
             INPUT_FILES = "{% for I in range(M+1)%}data-{{I}} {% endfor %} $IO_DIR_PREV/fcast.out"
             OUTPUT_FILES = "fcast.in"
-            SLEEP=20
+            #SLEEP=20
     [[cold-forecast]]
         # Generate start data for the first forecast forecast.
         pre-script = "mkdir -p $IO_DIR_PREV"
         [[[environment]]]
             OUTPUT_FILES = "$IO_DIR_PREV/fcast.out"
-            SLEEP=20
+            #SLEEP=20
     [[forecast]]
         # Do the next forecast.
         [[[environment]]]
             INPUT_FILES = "fcast.in $IO_DIR_PREV/fcast.out"
             OUTPUT_FILES = "fcast.out"
-            SLEEP=30
+            #SLEEP=30
     [[validate]]
         # Validate forecast output.
         [[[environment]]]

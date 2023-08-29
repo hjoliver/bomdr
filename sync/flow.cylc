@@ -1,57 +1,91 @@
 #!Jinja2
 
-{% import "sync.j2" as config %}
+{% import "config.j2" as config %}
+
+{#
+-------------------------------------------------------------------------------
+This is a Jinja2 template to generate a sync workflow for target workflow sync
+points configured in config.j2. Use "cylc view -j" to see the processed result.
+-------------------------------------------------------------------------------
+#}
 
 [scheduling]
-    initial cycle point = now
-    [[xtriggers]]
-        # External triggers to watch tasks in other workflows.
+   # initial cycle point = now
+   initial cycle point = 2022
+   final cycle point = +PT2M
+   [[xtriggers]]
+      # External triggers to watch tasks in other workflows.
 {% for WORKFLOW in config.workflows %}
   {% for SYNC in WORKFLOW["sync"] %}
     {% for TASK in SYNC["tasks"] %}
-        {{WORKFLOW["name"]}}_{{TASK}} = workflow_state( \
-                workflow={{WORKFLOW["id"]}}, task={{TASK}}, point=%(point)s)
+      {{WORKFLOW["name"]}}_{{TASK}} = workflow_state( \
+         workflow={{WORKFLOW["id"]}}, task={{TASK}}, point=%(point)s)
     {% endfor %}
   {% endfor %}
 {% endfor %}
 
-    [[graph]]
+   [[graph]]
 {% for WORKFLOW in config.workflows %}
   {% for SYNC in WORKFLOW["sync"] %}
-        {{SYNC["recurrence"]}} = """
+      {{SYNC["recurrence"]}} = """
     {% for TASK in SYNC["tasks"] %}
-            @{{WORKFLOW["name"]}}_{{TASK}} =>
-                sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}} => update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}
+         @{{WORKFLOW["name"]}}_{{TASK}} =>
+            sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}} => update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}
     {% endfor %}
-        """
+      """
   {% endfor %}
 {% endfor %}
 
 [runtime]
+   [[root]]
+       [[[environment]]]
+           CYCLE = $CYLC_TASK_CYCLE_POINT  # convenience
 {% for WORKFLOW in config.workflows %}
-    [[{{WORKFLOW["name"]}}]]
+   [[{{WORKFLOW["name"]}}]]
   {% for SYNC in WORKFLOW["sync"] %}
-    [[sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
-        # Sync the files for sync point "{{SYNC["name"]}}".
-        inherit = {{WORKFLOW["name"]}}
-        script = """
-            echo "SYNC to remote {{config.target}}:"
-    {% for FILE in SYNC["files"] %}
-            echo " - {{FILE}}"
-    {% endfor %}
-        """
-    [[update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
-        # Update remote fail-over DB for sync point "{{SYNC["name"]}}".
-        inherit = {{WORKFLOW["name"]}}
-        script = """
-            echo "Workflow {{WORKFLOW["name"]}} can be started at:"
-    {% for TASK in SYNC["tasks"] %}
-            echo " - downstream of: ${CYLC_TASK_CYCLE_POINT}/{{TASK}}"
-    {% endfor %}
-    {% for TASK, OFFSET in SYNC["off-flow"] %}
-            NEXT_POINT=$(cylc cyclepoint --offset={{OFFSET}})
-            echo " - trigger off-flow: ${NEXT_POINT}/{{TASK}}"
-    {% endfor %}
-        """
+   [[sync_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
+      # Sync the files for sync point "{{SYNC["name"]}}".
+      inherit = {{WORKFLOW["name"]}}
+      script = """
+         # Call sync script once for each file.
+  {# FILE must be relative to ~/cylc-run #}
+  {% for FILE in SYNC["files"] %}
+         remote-sync.sh {{config.remote}} {{WORKFLOW["id"]}}/{{FILE}}
+  {% endfor %}
+      """
+   [[update_{{WORKFLOW["name"]}}_{{SYNC["name"]}}]]
+      # Update remote fail-over info for sync point "{{SYNC["name"]}}".
+      inherit = {{WORKFLOW["name"]}}
+      script = """
+         # Write a JSON sync file for each sync point.
+         ROFILE=share/sync-{{WORKFLOW["name"]}}-${CYCLE}-{{SYNC["name"]}}.json
+         FOFILE=$CYLC_WORKFLOW_RUN_DIR/$ROFILE
+  {# construct command line (note dashes are Jinja2 whitespace control) #}
+         write-syncfile.py -w
+  {{-
+         " " ~ WORKFLOW["name"] ~ " "
+  -}}
+  {%- for TASK in SYNC["tasks"] -%}
+            -s $CYCLE/{{TASK ~ " "}}
+  {%- endfor -%}
+  {%- for TASK, OFFSET in SYNC["off-flow"] -%}
+            -t $(cylc cyclepoint --offset={{OFFSET}})/{{TASK ~ " "}}
+  {%- endfor %}
+  {{-
+            "$FOFILE"
+  }}
+         # Sync the newly generated sync-file to remote.
+         remote-sync.sh {{config.remote}} $CYLC_WORKFLOW_ID/$ROFILE
+
+      # TODO: move the following to other tasks, and consider frequency:
+
+         # Sync the watched workflow config to remote.
+         remote-sync.sh {{config.remote}} {{WORKFLOW["id"]}}/flow.cylc
+         remote-sync.sh {{config.remote}} {{WORKFLOW["id"]}}/bin/fake-exe
+
+         # Sync the sync workflow config to remote.
+         remote-sync.sh {{config.remote}} $CYLC_WORKFLOW_ID/flow.cylc
+         remote-sync.sh {{config.remote}} $CYLC_WORKFLOW_ID/config.j2
+      """
   {% endfor %}
 {% endfor %}

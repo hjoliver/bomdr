@@ -78,3 +78,30 @@ Syncpoint files look like
 $ start-remote.py <syncpoint.json>
 
 ```
+## Appendix: mid-run start-up in Cylc 8
+
+### list start-tasks that need the synced input files
+
+Start with (e.g.) `cylc play --pause --start-task=ID1 --start-task=ID2 ...`:
+- The start-tasks will run at start-up regardless of prerequisites
+- Dependence on cycles prior to the earliest start-task will be ignored
+
+### off-flow prerequisites
+
+These will stall stall the next cycle, if not downstream of the start-tasks.
+If needed (depending on workflow graph structure):
+- `cylc set --pre=all` to spawn cycle-start tasks that wait on clock-triggers
+- `cylc set --pre=PRE` to satisfy particular prerequisites
+- `cylc set [--out=OUT]` to satisfy outputs
+
+### future simplification
+
+With group trigger (8.5.0) and extended task matching (8.6.0) start a whole cycle point
+(if only using a single sync point at the start of each cycle).
+
+
+### [!WARNING]
+
+Beware of previous-cycle ignore behaviour if using start-tasks: if there are any
+intercycle dependencies downstream of start-tasks, the corresponding files must
+must be synced before start-up.
